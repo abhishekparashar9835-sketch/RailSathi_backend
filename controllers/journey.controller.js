@@ -18,7 +18,7 @@ const createJourney = async (req, res) => {
 
     return res.status(error.statusCode || 400).json({
       success: false,
-      message: error.message,
+      message: error.message || "Unable to create journey",
     });
   }
 };
@@ -39,9 +39,9 @@ const getAllJourneys = async (req, res) => {
   } catch (error) {
     console.error("GET ALL JOURNEYS ERROR:", error);
 
-    return res.status(500).json({
+    return res.status(error.statusCode || 500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Unable to fetch journeys",
     });
   }
 };
@@ -65,19 +65,22 @@ const getJourneyById = async (req, res) => {
 
     return res.status(error.statusCode || 404).json({
       success: false,
-      message: error.message,
+      message: error.message || "Journey not found",
     });
   }
 };
 
 // ============================================================
 // UPDATE JOURNEY
+// PUT /api/journeys/:id
 // ============================================================
 
 const updateJourney = async (req, res) => {
   try {
+    const { id } = req.params;
+
     const journey = await journeyService.updateJourney(
-      req.params.id,
+      id,
       req.body
     );
 
@@ -91,7 +94,7 @@ const updateJourney = async (req, res) => {
 
     return res.status(error.statusCode || 400).json({
       success: false,
-      message: error.message,
+      message: error.message || "Unable to update journey",
     });
   }
 };
@@ -123,6 +126,7 @@ const resetAttendance = async (req, res) => {
 
 // ============================================================
 // UPDATE JOURNEY STATUS
+// PATCH /api/journeys/:id/status
 // ============================================================
 
 const updateJourneyStatus = async (req, res) => {
@@ -138,10 +142,7 @@ const updateJourneyStatus = async (req, res) => {
       data: journey,
     });
   } catch (error) {
-    console.error(
-      "UPDATE JOURNEY STATUS ERROR:",
-      error
-    );
+    console.error("UPDATE JOURNEY STATUS ERROR:", error);
 
     return res.status(error.statusCode || 400).json({
       success: false,
@@ -152,6 +153,7 @@ const updateJourneyStatus = async (req, res) => {
 
 // ============================================================
 // DELETE JOURNEY
+// DELETE /api/journeys/:id
 // ============================================================
 
 const deleteJourney = async (req, res) => {
