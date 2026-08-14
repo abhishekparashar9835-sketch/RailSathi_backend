@@ -92,4 +92,11 @@ router.patch(
   journeyController.resetAttendance
 );
 
+router.put(
+  "/:id",
+  authMiddleware,
+  authorizeRoles("ADMIN"),
+  journeyController.updateJourney
+);
+
 module.exports = router;

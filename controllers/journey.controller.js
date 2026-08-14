@@ -125,28 +125,27 @@ const resetAttendance = async (req, res) => {
 };
 
 // ============================================================
-// UPDATE JOURNEY STATUS
-// PATCH /api/journeys/:id/status
+// UPDATE JOURNEY
 // ============================================================
 
-const updateJourneyStatus = async (req, res) => {
+const updateJourney = async (req, res) => {
   try {
-    const journey =
-      await journeyService.updateJourneyStatus(
-        req.params.id
-      );
+    const journey = await journeyService.updateJourney(
+      req.params.id,
+      req.body
+    );
 
     return res.status(200).json({
       success: true,
-      message: "Journey status updated successfully",
+      message: "Journey updated successfully",
       data: journey,
     });
   } catch (error) {
-    console.error("UPDATE JOURNEY STATUS ERROR:", error);
+    console.error("UPDATE JOURNEY ERROR:", error);
 
-    return res.status(error.statusCode || 400).json({
+    return res.status(error.statusCode || 500).json({
       success: false,
-      message: error.message,
+      message: error.message || "Unable to update journey",
     });
   }
 };

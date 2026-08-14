@@ -1450,68 +1450,35 @@ const updateJourney = async (
 // ============================================================
 // DELETE JOURNEY
 // ADMIN CAN DELETE ANY JOURNEY
-// INCLUDING COMPLETED JOURNEYS
+// INCLUDING COMPLETED / CANCELLED JOURNEYS
 // ============================================================
 
-const deleteJourney = async (
-  journeyId
-) => {
+const deleteJourney = async (journeyId) => {
   if (!journeyId) {
-    const error = new Error(
-      "Journey ID is required"
-    );
-
+    const error = new Error("Journey ID is required");
     error.statusCode = 400;
-
     throw error;
   }
 
-  if (
-    !mongoose.Types.ObjectId.isValid(
-      journeyId
-    )
-  ) {
-    const error = new Error(
-      "Invalid journey ID"
-    );
-
+  if (!mongoose.Types.ObjectId.isValid(journeyId)) {
+    const error = new Error("Invalid journey ID");
     error.statusCode = 400;
-
     throw error;
   }
 
-  const journey = await Journey.findById(
-    journeyId
-  );
+  const journey = await Journey.findById(journeyId);
 
   if (!journey) {
-    const error = new Error(
-      "Journey not found"
-    );
-
+    const error = new Error("Journey not found");
     error.statusCode = 404;
-
     throw error;
   }
 
-  // ==========================================================
   // IMPORTANT:
-  //
-  // ADMIN CAN DELETE:
-  // SCHEDULED
-  // BOARDING
-  // DEPARTED
-  // RUNNING
-  // ARRIVED
-  // COMPLETED
-  // CANCELLED
-  //
-  // NO STATUS RESTRICTION
-  // ==========================================================
+  // Do NOT block COMPLETED or CANCELLED journeys.
+  // Admin is allowed to delete them.
 
-  await Journey.findByIdAndDelete(
-    journeyId
-  );
+  await Journey.findByIdAndDelete(journeyId);
 
   return journey;
 };
@@ -1544,4 +1511,5 @@ module.exports = {
   updateJourney,
 
   deleteJourney,
+  
 };
