@@ -88,7 +88,7 @@ router.patch(
 router.patch(
   "/:id/reset-attendance",
   authMiddleware,
-  authorizeRoles("ADMIN"),
+  authorizeRoles("ADMIN", "TTE"),
   journeyController.resetAttendance
 );
 

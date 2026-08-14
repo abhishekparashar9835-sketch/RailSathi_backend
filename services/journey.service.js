@@ -128,15 +128,11 @@ const createJourney = async (data) => {
   const arrival = new Date(arrivalDateTime);
 
   if (isNaN(departure.getTime())) {
-    throw new Error(
-      "Invalid departureDateTime"
-    );
+    throw new Error("Invalid departureDateTime");
   }
 
   if (isNaN(arrival.getTime())) {
-    throw new Error(
-      "Invalid arrivalDateTime"
-    );
+    throw new Error("Invalid arrivalDateTime");
   }
 
   if (arrival <= departure) {
@@ -391,9 +387,7 @@ const getJourneyById = async (journeyId) => {
     throw error;
   }
 
-  await updateJourneyStatusByTime(
-    journey
-  );
+  await updateJourneyStatusByTime(journey);
 
   return journey;
 };
@@ -913,8 +907,7 @@ const closeAttendance = async (
     throw error;
   }
 
-  journey.attendanceClosed =
-    true;
+  journey.attendanceClosed = true;
 
   journey.attendanceProcessedAt =
     new Date();
@@ -1001,8 +994,7 @@ const completeJourney = async (
     throw error;
   }
 
-  journey.attendanceClosed =
-    true;
+  journey.attendanceClosed = true;
 
   journey.attendanceProcessedAt =
     journey.attendanceProcessedAt ||
@@ -1014,6 +1006,64 @@ const completeJourney = async (
   await journey.save();
 
   return journey;
+};
+
+// ============================================================
+// UPDATE JOURNEY STATUS
+// ============================================================
+
+const updateJourneyStatus = async (
+  journeyId
+) => {
+  if (!journeyId) {
+    const error = new Error(
+      "Journey ID is required"
+    );
+
+    error.statusCode = 400;
+
+    throw error;
+  }
+
+  if (
+    !mongoose.Types.ObjectId.isValid(
+      journeyId
+    )
+  ) {
+    const error = new Error(
+      "Invalid journey ID"
+    );
+
+    error.statusCode = 400;
+
+    throw error;
+  }
+
+  const journey = await Journey.findById(
+    journeyId
+  );
+
+  if (!journey) {
+    const error = new Error(
+      "Journey not found"
+    );
+
+    error.statusCode = 404;
+
+    throw error;
+  }
+
+  await updateJourneyStatusByTime(
+    journey
+  );
+
+  return await Journey.findById(
+    journey._id
+  ).populate({
+    path: "train",
+    select:
+      "trainNumber trainName trainType source destination",
+  });
 };
 
 // ============================================================
@@ -1119,14 +1169,18 @@ const updateJourney = async (
   // ----------------------------------------------------------
 
   if (
-    departureDateTime !== undefined
+    departureDateTime !==
+    undefined
   ) {
-    const departure = new Date(
-      departureDateTime
-    );
+    const departure =
+      new Date(
+        departureDateTime
+      );
 
     if (
-      isNaN(departure.getTime())
+      isNaN(
+        departure.getTime()
+      )
     ) {
       const error = new Error(
         "Invalid departureDateTime"
@@ -1146,14 +1200,18 @@ const updateJourney = async (
   // ----------------------------------------------------------
 
   if (
-    arrivalDateTime !== undefined
+    arrivalDateTime !==
+    undefined
   ) {
-    const arrival = new Date(
-      arrivalDateTime
-    );
+    const arrival =
+      new Date(
+        arrivalDateTime
+      );
 
     if (
-      isNaN(arrival.getTime())
+      isNaN(
+        arrival.getTime()
+      )
     ) {
       const error = new Error(
         "Invalid arrivalDateTime"
@@ -1191,8 +1249,12 @@ const updateJourney = async (
   // PLATFORM
   // ----------------------------------------------------------
 
-  if (platform !== undefined) {
-    if (!String(platform).trim()) {
+  if (
+    platform !== undefined
+  ) {
+    if (
+      !String(platform).trim()
+    ) {
       const error = new Error(
         "Platform is required"
       );
@@ -1210,10 +1272,11 @@ const updateJourney = async (
   // SEAT CAPACITY
   // ----------------------------------------------------------
 
-  if (seatCapacity !== undefined) {
-    const value = Number(
-      seatCapacity
-    );
+  if (
+    seatCapacity !== undefined
+  ) {
+    const value =
+      Number(seatCapacity);
 
     if (
       !Number.isInteger(value) ||
@@ -1233,16 +1296,17 @@ const updateJourney = async (
   }
 
   // ----------------------------------------------------------
-  // CONFIRMED SEAT CAPACITY
+  // CONFIRMED CAPACITY
   // ----------------------------------------------------------
 
   if (
     confirmedSeatCapacity !==
     undefined
   ) {
-    const value = Number(
-      confirmedSeatCapacity
-    );
+    const value =
+      Number(
+        confirmedSeatCapacity
+      );
 
     if (
       !Number.isInteger(value) ||
@@ -1261,6 +1325,10 @@ const updateJourney = async (
       value;
   }
 
+  // ----------------------------------------------------------
+  // CONFIRMED <= PHYSICAL
+  // ----------------------------------------------------------
+
   if (
     journey.confirmedSeatCapacity >
     journey.seatCapacity
@@ -1278,10 +1346,11 @@ const updateJourney = async (
   // RAC CAPACITY
   // ----------------------------------------------------------
 
-  if (racCapacity !== undefined) {
-    const value = Number(
-      racCapacity
-    );
+  if (
+    racCapacity !== undefined
+  ) {
+    const value =
+      Number(racCapacity);
 
     if (
       !Number.isInteger(value) ||
@@ -1296,7 +1365,8 @@ const updateJourney = async (
       throw error;
     }
 
-    journey.racCapacity = value;
+    journey.racCapacity =
+      value;
   }
 
   // ----------------------------------------------------------
@@ -1304,7 +1374,8 @@ const updateJourney = async (
   // ----------------------------------------------------------
 
   if (
-    currentStatus !== undefined
+    currentStatus !==
+    undefined
   ) {
     const allowedStatuses = [
       "SCHEDULED",
@@ -1339,11 +1410,11 @@ const updateJourney = async (
   // ----------------------------------------------------------
 
   if (
-    delayInMinutes !== undefined
+    delayInMinutes !==
+    undefined
   ) {
-    const value = Number(
-      delayInMinutes
-    );
+    const value =
+      Number(delayInMinutes);
 
     if (
       !Number.isInteger(value) ||
@@ -1362,6 +1433,10 @@ const updateJourney = async (
       value;
   }
 
+  // ----------------------------------------------------------
+  // SAVE
+  // ----------------------------------------------------------
+
   await journey.save();
 
   return await Journey.findById(
@@ -1373,66 +1448,9 @@ const updateJourney = async (
 };
 
 // ============================================================
-// UPDATE JOURNEY STATUS
-// ============================================================
-
-const updateJourneyStatus = async (
-  journeyId
-) => {
-  if (!journeyId) {
-    const error = new Error(
-      "Journey ID is required"
-    );
-
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  if (
-    !mongoose.Types.ObjectId.isValid(
-      journeyId
-    )
-  ) {
-    const error = new Error(
-      "Invalid journey ID"
-    );
-
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  const journey = await Journey.findById(
-    journeyId
-  );
-
-  if (!journey) {
-    const error = new Error(
-      "Journey not found"
-    );
-
-    error.statusCode = 404;
-
-    throw error;
-  }
-
-  await updateJourneyStatusByTime(
-    journey
-  );
-
-  return await Journey.findById(
-    journey._id
-  ).populate({
-    path: "train",
-    select:
-      "trainNumber trainName trainType source destination",
-  });
-};
-
-// ============================================================
 // DELETE JOURNEY
-// ADMIN CAN DELETE ANY STATUS
+// ADMIN CAN DELETE ANY JOURNEY
+// INCLUDING COMPLETED JOURNEYS
 // ============================================================
 
 const deleteJourney = async (
@@ -1477,10 +1495,9 @@ const deleteJourney = async (
   }
 
   // ==========================================================
-  // NO STATUS RESTRICTION
+  // IMPORTANT:
   //
   // ADMIN CAN DELETE:
-  //
   // SCHEDULED
   // BOARDING
   // DEPARTED
@@ -1488,6 +1505,8 @@ const deleteJourney = async (
   // ARRIVED
   // COMPLETED
   // CANCELLED
+  //
+  // NO STATUS RESTRICTION
   // ==========================================================
 
   await Journey.findByIdAndDelete(
@@ -1503,16 +1522,23 @@ const deleteJourney = async (
 
 module.exports = {
   createJourney,
+
   getAllJourneys,
+
   getJourneyById,
 
   startAttendance,
+
   getAttendanceStatus,
+
   resetAttendance,
+
   closeAttendance,
+
   completeJourney,
 
   updateJourneyStatusByTime,
+
   updateJourneyStatus,
 
   updateJourney,
