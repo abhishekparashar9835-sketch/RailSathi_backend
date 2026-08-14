@@ -4,6 +4,50 @@ const Journey = require("../models/Journey");
 const Train = require("../models/Train");
 
 // ============================================================
+// CONSTANTS
+// ============================================================
+
+const ALLOWED_STATUSES = [
+  "SCHEDULED",
+  "BOARDING",
+  "DEPARTED",
+  "RUNNING",
+  "ARRIVED",
+  "COMPLETED",
+  "CANCELLED",
+];
+
+const TRAIN_SELECT =
+  "trainNumber trainName trainType source destination";
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+const createError = (message, statusCode = 400) => {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+};
+
+const validateJourneyId = (journeyId) => {
+  if (!journeyId) {
+    throw createError("Journey ID is required", 400);
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(journeyId)) {
+    throw createError("Invalid journey ID", 400);
+  }
+};
+
+const getPopulatedJourney = async (journeyId) => {
+  return Journey.findById(journeyId).populate(
+    "train",
+    TRAIN_SELECT
+  );
+};
+
+// ============================================================
 // CREATE JOURNEY
 // ============================================================
 
@@ -14,37 +58,88 @@ const createJourney = async (data) => {
     arrivalDateTime,
     platform,
     seatCapacity,
+    confirmedSeatCapacity,
     racCapacity,
     currentStatus,
-    confirmedSeatCapacity,
   } = data;
 
   // ----------------------------------------------------------
-  // VALIDATION
+  // TRAIN
   // ----------------------------------------------------------
 
   if (!train) {
-    throw new Error("train is required");
+    throw createError("train is required", 400);
   }
 
   if (!mongoose.Types.ObjectId.isValid(train)) {
-    throw new Error("Invalid train ID");
+    throw createError("Invalid train ID", 400);
   }
 
-  if (!departureDateTime) {
-    throw new Error("departureDateTime is required");
-  }
+  const trainDocument = await Train.findOne({
+    _id: train,
+    isActive: true,
+  });
 
-  if (!arrivalDateTime) {
-    throw new Error("arrivalDateTime is required");
-  }
-
-  if (!platform) {
-    throw new Error("platform is required");
+  if (!trainDocument) {
+    throw createError("Active train not found", 404);
   }
 
   // ----------------------------------------------------------
-  // PHYSICAL SEAT CAPACITY
+  // DATES
+  // ----------------------------------------------------------
+
+  if (!departureDateTime) {
+    throw createError(
+      "departureDateTime is required",
+      400
+    );
+  }
+
+  if (!arrivalDateTime) {
+    throw createError(
+      "arrivalDateTime is required",
+      400
+    );
+  }
+
+  const departure = new Date(departureDateTime);
+  const arrival = new Date(arrivalDateTime);
+
+  if (isNaN(departure.getTime())) {
+    throw createError(
+      "Invalid departureDateTime",
+      400
+    );
+  }
+
+  if (isNaN(arrival.getTime())) {
+    throw createError(
+      "Invalid arrivalDateTime",
+      400
+    );
+  }
+
+  if (arrival <= departure) {
+    throw createError(
+      "Arrival time must be after departure time",
+      400
+    );
+  }
+
+  // ----------------------------------------------------------
+  // PLATFORM
+  // ----------------------------------------------------------
+
+  if (
+    platform === undefined ||
+    platform === null ||
+    !String(platform).trim()
+  ) {
+    throw createError("Platform is required", 400);
+  }
+
+  // ----------------------------------------------------------
+  // SEAT CAPACITY
   // ----------------------------------------------------------
 
   const finalSeatCapacity = Number(seatCapacity);
@@ -53,8 +148,9 @@ const createJourney = async (data) => {
     !Number.isInteger(finalSeatCapacity) ||
     finalSeatCapacity < 1
   ) {
-    throw new Error(
-      "seatCapacity must be a positive integer"
+    throw createError(
+      "seatCapacity must be a positive integer",
+      400
     );
   }
 
@@ -73,8 +169,9 @@ const createJourney = async (data) => {
     !Number.isInteger(finalConfirmedSeatCapacity) ||
     finalConfirmedSeatCapacity < 1
   ) {
-    throw new Error(
-      "confirmedSeatCapacity must be a positive integer"
+    throw createError(
+      "confirmedSeatCapacity must be a positive integer",
+      400
     );
   }
 
@@ -82,8 +179,9 @@ const createJourney = async (data) => {
     finalConfirmedSeatCapacity >
     finalSeatCapacity
   ) {
-    throw new Error(
-      "confirmedSeatCapacity cannot exceed seatCapacity"
+    throw createError(
+      "confirmedSeatCapacity cannot exceed seatCapacity",
+      400
     );
   }
 
@@ -102,47 +200,24 @@ const createJourney = async (data) => {
     !Number.isInteger(finalRacCapacity) ||
     finalRacCapacity < 0
   ) {
-    throw new Error(
-      "racCapacity must be a non-negative integer"
+    throw createError(
+      "racCapacity must be a non-negative integer",
+      400
     );
   }
 
   // ----------------------------------------------------------
-  // FIND TRAIN
+  // STATUS
   // ----------------------------------------------------------
 
-  const trainDocument = await Train.findOne({
-    _id: train,
-    isActive: true,
-  });
-
-  if (!trainDocument) {
-    throw new Error("Active train not found");
-  }
+  const finalStatus =
+    currentStatus &&
+    ALLOWED_STATUSES.includes(currentStatus)
+      ? currentStatus
+      : "SCHEDULED";
 
   // ----------------------------------------------------------
-  // DATE VALIDATION
-  // ----------------------------------------------------------
-
-  const departure = new Date(departureDateTime);
-  const arrival = new Date(arrivalDateTime);
-
-  if (isNaN(departure.getTime())) {
-    throw new Error("Invalid departureDateTime");
-  }
-
-  if (isNaN(arrival.getTime())) {
-    throw new Error("Invalid arrivalDateTime");
-  }
-
-  if (arrival <= departure) {
-    throw new Error(
-      "Arrival time must be after departure time"
-    );
-  }
-
-  // ----------------------------------------------------------
-  // DUPLICATE JOURNEY CHECK
+  // DUPLICATE CHECK
   // ----------------------------------------------------------
 
   const existingJourney = await Journey.findOne({
@@ -152,33 +227,14 @@ const createJourney = async (data) => {
   });
 
   if (existingJourney) {
-    throw new Error(
-      "Journey already exists for this train and departure time"
+    throw createError(
+      "Journey already exists for this train and departure time",
+      409
     );
   }
 
   // ----------------------------------------------------------
-  // STATUS
-  // ----------------------------------------------------------
-
-  const allowedStatuses = [
-    "SCHEDULED",
-    "BOARDING",
-    "DEPARTED",
-    "RUNNING",
-    "ARRIVED",
-    "COMPLETED",
-    "CANCELLED",
-  ];
-
-  const finalStatus =
-    currentStatus &&
-    allowedStatuses.includes(currentStatus)
-      ? currentStatus
-      : "SCHEDULED";
-
-  // ----------------------------------------------------------
-  // CREATE JOURNEY
+  // CREATE
   // ----------------------------------------------------------
 
   const journey = await Journey.create({
@@ -212,20 +268,11 @@ const createJourney = async (data) => {
     isActive: true,
   });
 
-  // ----------------------------------------------------------
-  // RETURN POPULATED JOURNEY
-  // ----------------------------------------------------------
-
-  return await Journey.findById(
-    journey._id
-  ).populate(
-    "train",
-    "trainNumber trainName trainType source destination"
-  );
+  return getPopulatedJourney(journey._id);
 };
 
 // ============================================================
-// AUTOMATIC JOURNEY STATUS
+// AUTOMATIC STATUS UPDATE
 // ============================================================
 
 const updateJourneyStatusByTime = async (journey) => {
@@ -261,19 +308,13 @@ const updateJourneyStatusByTime = async (journey) => {
     return journey;
   }
 
-  // ----------------------------------------------------------
-  // BOARDING STARTS 30 MINUTES BEFORE DEPARTURE
-  // ----------------------------------------------------------
-
+  // Boarding starts 30 minutes before departure
   const boardingStart = new Date(
     departure.getTime() -
       30 * 60 * 1000
   );
 
-  // ----------------------------------------------------------
-  // RUNNING STARTS 1 MINUTE AFTER DEPARTURE
-  // ----------------------------------------------------------
-
+  // Running starts 1 minute after departure
   const runningStart = new Date(
     departure.getTime() +
       1 * 60 * 1000
@@ -292,10 +333,6 @@ const updateJourneyStatusByTime = async (journey) => {
   } else {
     newStatus = "ARRIVED";
   }
-
-  // ----------------------------------------------------------
-  // UPDATE ONLY STATUS
-  // ----------------------------------------------------------
 
   if (
     newStatus !== journey.currentStatus
@@ -327,8 +364,7 @@ const getAllJourneys = async () => {
   })
     .populate({
       path: "train",
-      select:
-        "trainNumber trainName trainType source destination",
+      select: TRAIN_SELECT,
     })
     .sort({
       departureDateTime: 1,
@@ -346,45 +382,17 @@ const getAllJourneys = async () => {
 // ============================================================
 
 const getJourneyById = async (journeyId) => {
-  if (!journeyId) {
-    const error = new Error(
-      "Journey ID is required"
-    );
+  validateJourneyId(journeyId);
 
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  if (
-    !mongoose.Types.ObjectId.isValid(
-      journeyId
-    )
-  ) {
-    const error = new Error(
-      "Invalid journey ID"
-    );
-
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  const journey = await Journey.findById(
+  const journey = await getPopulatedJourney(
     journeyId
-  ).populate(
-    "train",
-    "trainNumber trainName trainType source destination"
   );
 
   if (!journey) {
-    const error = new Error(
-      "Journey not found"
+    throw createError(
+      "Journey not found",
+      404
     );
-
-    error.statusCode = 404;
-
-    throw error;
   }
 
   await updateJourneyStatusByTime(journey);
@@ -393,45 +401,323 @@ const getJourneyById = async (journeyId) => {
 };
 
 // ============================================================
-// START ATTENDANCE
+// UPDATE JOURNEY
+// PUT /api/journeys/:id
 // ============================================================
 
-const startAttendance = async (journeyId) => {
-  if (!journeyId) {
-    const error = new Error(
-      "Journey ID is required"
-    );
-
-    error.statusCode = 400;
-
-    throw error;
-  }
+const updateJourney = async (
+  journeyId,
+  data
+) => {
+  validateJourneyId(journeyId);
 
   const journey = await Journey.findById(
     journeyId
-  ).populate(
-    "train",
-    "trainNumber trainName trainType source destination"
   );
 
   if (!journey) {
-    const error = new Error(
-      "Journey not found"
+    throw createError(
+      "Journey not found",
+      404
+    );
+  }
+
+  const {
+    train,
+    departureDateTime,
+    arrivalDateTime,
+    platform,
+    seatCapacity,
+    confirmedSeatCapacity,
+    racCapacity,
+    currentStatus,
+    delayInMinutes,
+  } = data;
+
+  // ----------------------------------------------------------
+  // TRAIN
+  // ----------------------------------------------------------
+
+  if (train !== undefined) {
+    if (!mongoose.Types.ObjectId.isValid(train)) {
+      throw createError(
+        "Invalid train ID",
+        400
+      );
+    }
+
+    const trainDocument = await Train.findOne({
+      _id: train,
+      isActive: true,
+    });
+
+    if (!trainDocument) {
+      throw createError(
+        "Active train not found",
+        404
+      );
+    }
+
+    journey.train = trainDocument._id;
+  }
+
+  // ----------------------------------------------------------
+  // DEPARTURE
+  // ----------------------------------------------------------
+
+  if (departureDateTime !== undefined) {
+    const departure = new Date(
+      departureDateTime
     );
 
-    error.statusCode = 404;
+    if (isNaN(departure.getTime())) {
+      throw createError(
+        "Invalid departureDateTime",
+        400
+      );
+    }
 
-    throw error;
+    journey.departureDateTime = departure;
+  }
+
+  // ----------------------------------------------------------
+  // ARRIVAL
+  // ----------------------------------------------------------
+
+  if (arrivalDateTime !== undefined) {
+    const arrival = new Date(
+      arrivalDateTime
+    );
+
+    if (isNaN(arrival.getTime())) {
+      throw createError(
+        "Invalid arrivalDateTime",
+        400
+      );
+    }
+
+    journey.arrivalDateTime = arrival;
+  }
+
+  // ----------------------------------------------------------
+  // DATE CONSISTENCY
+  // ----------------------------------------------------------
+
+  if (
+    journey.departureDateTime &&
+    journey.arrivalDateTime &&
+    journey.arrivalDateTime <=
+      journey.departureDateTime
+  ) {
+    throw createError(
+      "Arrival time must be after departure time",
+      400
+    );
+  }
+
+  // ----------------------------------------------------------
+  // PLATFORM
+  // ----------------------------------------------------------
+
+  if (platform !== undefined) {
+    if (!String(platform).trim()) {
+      throw createError(
+        "Platform is required",
+        400
+      );
+    }
+
+    journey.platform =
+      String(platform).trim();
+  }
+
+  // ----------------------------------------------------------
+  // PHYSICAL SEAT CAPACITY
+  // ----------------------------------------------------------
+
+  if (seatCapacity !== undefined) {
+    const value = Number(seatCapacity);
+
+    if (
+      !Number.isInteger(value) ||
+      value < 1
+    ) {
+      throw createError(
+        "seatCapacity must be a positive integer",
+        400
+      );
+    }
+
+    journey.seatCapacity = value;
+  }
+
+  // ----------------------------------------------------------
+  // CONFIRMED SEAT CAPACITY
+  // ----------------------------------------------------------
+
+  if (
+    confirmedSeatCapacity !== undefined
+  ) {
+    const value = Number(
+      confirmedSeatCapacity
+    );
+
+    if (
+      !Number.isInteger(value) ||
+      value < 1
+    ) {
+      throw createError(
+        "confirmedSeatCapacity must be a positive integer",
+        400
+      );
+    }
+
+    journey.confirmedSeatCapacity =
+      value;
+  }
+
+  // ----------------------------------------------------------
+  // CONFIRMED <= PHYSICAL
+  // ----------------------------------------------------------
+
+  if (
+    journey.confirmedSeatCapacity >
+    journey.seatCapacity
+  ) {
+    throw createError(
+      "confirmedSeatCapacity cannot exceed seatCapacity",
+      400
+    );
+  }
+
+  // ----------------------------------------------------------
+  // RAC CAPACITY
+  // ----------------------------------------------------------
+
+  if (racCapacity !== undefined) {
+    const value = Number(racCapacity);
+
+    if (
+      !Number.isInteger(value) ||
+      value < 0
+    ) {
+      throw createError(
+        "racCapacity must be a non-negative integer",
+        400
+      );
+    }
+
+    journey.racCapacity = value;
+  }
+
+  // ----------------------------------------------------------
+  // STATUS
+  // ----------------------------------------------------------
+
+  if (currentStatus !== undefined) {
+    if (
+      !ALLOWED_STATUSES.includes(
+        currentStatus
+      )
+    ) {
+      throw createError(
+        `Invalid journey status: ${currentStatus}`,
+        400
+      );
+    }
+
+    journey.currentStatus =
+      currentStatus;
+  }
+
+  // ----------------------------------------------------------
+  // DELAY
+  // ----------------------------------------------------------
+
+  if (delayInMinutes !== undefined) {
+    const value = Number(
+      delayInMinutes
+    );
+
+    if (
+      !Number.isInteger(value) ||
+      value < 0
+    ) {
+      throw createError(
+        "delayInMinutes must be a non-negative integer",
+        400
+      );
+    }
+
+    journey.delayInMinutes = value;
+  }
+
+  // ----------------------------------------------------------
+  // SAVE
+  // ----------------------------------------------------------
+
+  await journey.save();
+
+  return getPopulatedJourney(
+    journey._id
+  );
+};
+
+// ============================================================
+// UPDATE JOURNEY STATUS
+// PATCH /api/journeys/:id/status
+// ============================================================
+
+const updateJourneyStatus = async (
+  journeyId
+) => {
+  validateJourneyId(journeyId);
+
+  const journey = await Journey.findById(
+    journeyId
+  );
+
+  if (!journey) {
+    throw createError(
+      "Journey not found",
+      404
+    );
+  }
+
+  await updateJourneyStatusByTime(
+    journey
+  );
+
+  return getPopulatedJourney(
+    journey._id
+  );
+};
+
+// ============================================================
+// START ATTENDANCE
+// ============================================================
+
+const startAttendance = async (
+  journeyId
+) => {
+  validateJourneyId(journeyId);
+
+  const journey = await getPopulatedJourney(
+    journeyId
+  );
+
+  if (!journey) {
+    throw createError(
+      "Journey not found",
+      404
+    );
   }
 
   if (!journey.isActive) {
-    const error = new Error(
-      "Journey is not active"
+    throw createError(
+      "Journey is not active",
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   await updateJourneyStatusByTime(
@@ -442,59 +728,44 @@ const startAttendance = async (journeyId) => {
     journey.currentStatus ===
     "CANCELLED"
   ) {
-    const error = new Error(
-      "Cannot start attendance for a cancelled journey"
+    throw createError(
+      "Cannot start attendance for a cancelled journey",
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   if (
     journey.currentStatus ===
     "COMPLETED"
   ) {
-    const error = new Error(
-      "Cannot start attendance after journey completion"
+    throw createError(
+      "Cannot start attendance after journey completion",
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   if (
     journey.currentStatus !==
     "BOARDING"
   ) {
-    const error = new Error(
-      `Attendance can only be started during boarding. Current status: ${journey.currentStatus}`
+    throw createError(
+      `Attendance can only be started during boarding. Current status: ${journey.currentStatus}`,
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   if (journey.attendanceClosed) {
-    const error = new Error(
-      "Attendance has already been closed for this journey"
+    throw createError(
+      "Attendance has already been closed for this journey",
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   if (journey.attendanceStartedAt) {
-    const error = new Error(
-      "Attendance has already been started for this journey"
+    throw createError(
+      "Attendance has already been started for this journey",
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   const attendanceDurationMinutes =
@@ -509,13 +780,10 @@ const startAttendance = async (journeyId) => {
     ) ||
     attendanceDurationMinutes < 1
   ) {
-    const error = new Error(
-      "Invalid ATTENDANCE_DURATION_MINUTES configuration"
+    throw createError(
+      "Invalid ATTENDANCE_DURATION_MINUTES configuration",
+      500
     );
-
-    error.statusCode = 500;
-
-    throw error;
   }
 
   const startedAt = new Date();
@@ -562,16 +830,12 @@ const startAttendance = async (journeyId) => {
     attendance: {
       startedAt:
         journey.attendanceStartedAt,
-
       cutoffAt:
         journey.attendanceCutoffAt,
-
       durationMinutes:
         attendanceDurationMinutes,
-
       closed:
         journey.attendanceClosed,
-
       processedAt:
         journey.attendanceProcessedAt,
     },
@@ -585,28 +849,17 @@ const startAttendance = async (journeyId) => {
 const getAttendanceStatus = async (
   journeyId
 ) => {
-  if (!journeyId) {
-    const error = new Error(
-      "Journey ID is required"
-    );
-
-    error.statusCode = 400;
-
-    throw error;
-  }
+  validateJourneyId(journeyId);
 
   const journey = await Journey.findById(
     journeyId
   );
 
   if (!journey) {
-    const error = new Error(
-      "Journey not found"
+    throw createError(
+      "Journey not found",
+      404
     );
-
-    error.statusCode = 404;
-
-    throw error;
   }
 
   await updateJourneyStatusByTime(
@@ -619,17 +872,12 @@ const getAttendanceStatus = async (
   ) {
     return {
       status: "COMPLETED",
-
       startedAt:
         journey.attendanceStartedAt,
-
       cutoffAt:
         journey.attendanceCutoffAt,
-
       remainingSeconds: 0,
-
       closed: true,
-
       processedAt:
         journey.attendanceProcessedAt,
     };
@@ -638,13 +886,9 @@ const getAttendanceStatus = async (
   if (!journey.attendanceStartedAt) {
     return {
       status: "NOT_STARTED",
-
       startedAt: null,
-
       cutoffAt: null,
-
       remainingSeconds: 0,
-
       closed:
         journey.attendanceClosed,
     };
@@ -653,17 +897,12 @@ const getAttendanceStatus = async (
   if (journey.attendanceClosed) {
     return {
       status: "CLOSED",
-
       startedAt:
         journey.attendanceStartedAt,
-
       cutoffAt:
         journey.attendanceCutoffAt,
-
       remainingSeconds: 0,
-
       closed: true,
-
       processedAt:
         journey.attendanceProcessedAt,
     };
@@ -672,13 +911,9 @@ const getAttendanceStatus = async (
   if (!journey.attendanceCutoffAt) {
     return {
       status: "NOT_STARTED",
-
       startedAt: null,
-
       cutoffAt: null,
-
       remainingSeconds: 0,
-
       closed: false,
     };
   }
@@ -695,38 +930,29 @@ const getAttendanceStatus = async (
       now.getTime()
   );
 
-  const remainingSeconds =
-    Math.ceil(
-      remainingMs / 1000
-    );
+  const remainingSeconds = Math.ceil(
+    remainingMs / 1000
+  );
 
   if (remainingSeconds <= 0) {
     return {
       status: "EXPIRED",
-
       startedAt:
         journey.attendanceStartedAt,
-
       cutoffAt:
         journey.attendanceCutoffAt,
-
       remainingSeconds: 0,
-
       closed: false,
     };
   }
 
   return {
     status: "ACTIVE",
-
     startedAt:
       journey.attendanceStartedAt,
-
     cutoffAt:
       journey.attendanceCutoffAt,
-
     remainingSeconds,
-
     closed: false,
   };
 };
@@ -738,28 +964,17 @@ const getAttendanceStatus = async (
 const resetAttendance = async (
   journeyId
 ) => {
-  if (!journeyId) {
-    const error = new Error(
-      "Journey ID is required"
-    );
-
-    error.statusCode = 400;
-
-    throw error;
-  }
+  validateJourneyId(journeyId);
 
   const journey = await Journey.findById(
     journeyId
   );
 
   if (!journey) {
-    const error = new Error(
-      "Journey not found"
+    throw createError(
+      "Journey not found",
+      404
     );
-
-    error.statusCode = 404;
-
-    throw error;
   }
 
   await updateJourneyStatusByTime(
@@ -770,66 +985,52 @@ const resetAttendance = async (
     journey.currentStatus ===
     "COMPLETED"
   ) {
-    const error = new Error(
-      "Attendance cannot be reset after journey completion"
+    throw createError(
+      "Attendance cannot be reset after journey completion",
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   if (
     journey.currentStatus ===
     "CANCELLED"
   ) {
-    const error = new Error(
-      "Attendance cannot be reset for a cancelled journey"
+    throw createError(
+      "Attendance cannot be reset for a cancelled journey",
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   if (
     journey.currentStatus !==
     "BOARDING"
   ) {
-    const error = new Error(
-      `Attendance can only be reset during boarding. Current status: ${journey.currentStatus}`
+    throw createError(
+      `Attendance can only be reset during boarding. Current status: ${journey.currentStatus}`,
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   if (journey.attendanceClosed) {
-    const error = new Error(
-      "Attendance has already been closed"
+    throw createError(
+      "Attendance has already been closed",
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
-  journey.attendanceStartedAt =
-    null;
+  journey.attendanceStartedAt = null;
 
-  journey.attendanceCutoffAt =
-    null;
+  journey.attendanceCutoffAt = null;
 
-  journey.attendanceClosed =
-    false;
+  journey.attendanceClosed = false;
 
-  journey.attendanceProcessedAt =
-    null;
+  journey.attendanceProcessedAt = null;
 
   await journey.save();
 
-  return journey;
+  return getPopulatedJourney(
+    journey._id
+  );
 };
 
 // ============================================================
@@ -839,28 +1040,17 @@ const resetAttendance = async (
 const closeAttendance = async (
   journeyId
 ) => {
-  if (!journeyId) {
-    const error = new Error(
-      "Journey ID is required"
-    );
-
-    error.statusCode = 400;
-
-    throw error;
-  }
+  validateJourneyId(journeyId);
 
   const journey = await Journey.findById(
     journeyId
   );
 
   if (!journey) {
-    const error = new Error(
-      "Journey not found"
+    throw createError(
+      "Journey not found",
+      404
     );
-
-    error.statusCode = 404;
-
-    throw error;
   }
 
   await updateJourneyStatusByTime(
@@ -871,13 +1061,10 @@ const closeAttendance = async (
     journey.currentStatus ===
     "CANCELLED"
   ) {
-    const error = new Error(
-      "Cannot close attendance for a cancelled journey"
+    throw createError(
+      "Cannot close attendance for a cancelled journey",
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   if (
@@ -888,23 +1075,17 @@ const closeAttendance = async (
   }
 
   if (!journey.attendanceStartedAt) {
-    const error = new Error(
-      "Attendance has not been started"
+    throw createError(
+      "Attendance has not been started",
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   if (journey.attendanceClosed) {
-    const error = new Error(
-      "Attendance is already closed"
+    throw createError(
+      "Attendance is already closed",
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   journey.attendanceClosed = true;
@@ -924,31 +1105,17 @@ const closeAttendance = async (
 const completeJourney = async (
   journeyId
 ) => {
-  if (!journeyId) {
-    const error = new Error(
-      "Journey ID is required"
-    );
+  validateJourneyId(journeyId);
 
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  const journey = await Journey.findById(
+  const journey = await getPopulatedJourney(
     journeyId
-  ).populate(
-    "train",
-    "trainNumber trainName trainType source destination"
   );
 
   if (!journey) {
-    const error = new Error(
-      "Journey not found"
+    throw createError(
+      "Journey not found",
+      404
     );
-
-    error.statusCode = 404;
-
-    throw error;
   }
 
   await updateJourneyStatusByTime(
@@ -959,39 +1126,30 @@ const completeJourney = async (
     journey.currentStatus ===
     "CANCELLED"
   ) {
-    const error = new Error(
-      "Cannot complete a cancelled journey"
+    throw createError(
+      "Cannot complete a cancelled journey",
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   if (
     journey.currentStatus ===
     "COMPLETED"
   ) {
-    const error = new Error(
-      "Journey is already completed"
+    throw createError(
+      "Journey is already completed",
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   if (
     journey.currentStatus !==
     "ARRIVED"
   ) {
-    const error = new Error(
-      `Journey cannot be completed while status is ${journey.currentStatus}`
+    throw createError(
+      `Journey cannot be completed while status is ${journey.currentStatus}`,
+      400
     );
-
-    error.statusCode = 400;
-
-    throw error;
   }
 
   journey.attendanceClosed = true;
@@ -1005,480 +1163,44 @@ const completeJourney = async (
 
   await journey.save();
 
-  return journey;
-};
-
-// ============================================================
-// UPDATE JOURNEY STATUS
-// ============================================================
-
-const updateJourneyStatus = async (
-  journeyId
-) => {
-  if (!journeyId) {
-    const error = new Error(
-      "Journey ID is required"
-    );
-
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  if (
-    !mongoose.Types.ObjectId.isValid(
-      journeyId
-    )
-  ) {
-    const error = new Error(
-      "Invalid journey ID"
-    );
-
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  const journey = await Journey.findById(
-    journeyId
-  );
-
-  if (!journey) {
-    const error = new Error(
-      "Journey not found"
-    );
-
-    error.statusCode = 404;
-
-    throw error;
-  }
-
-  await updateJourneyStatusByTime(
-    journey
-  );
-
-  return await Journey.findById(
+  return getPopulatedJourney(
     journey._id
-  ).populate({
-    path: "train",
-    select:
-      "trainNumber trainName trainType source destination",
-  });
-};
-
-// ============================================================
-// UPDATE JOURNEY
-// PUT /api/journeys/:id
-// ============================================================
-
-const updateJourney = async (
-  journeyId,
-  data
-) => {
-  if (!journeyId) {
-    const error = new Error(
-      "Journey ID is required"
-    );
-
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  if (
-    !mongoose.Types.ObjectId.isValid(
-      journeyId
-    )
-  ) {
-    const error = new Error(
-      "Invalid journey ID"
-    );
-
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  const journey = await Journey.findById(
-    journeyId
-  );
-
-  if (!journey) {
-    const error = new Error(
-      "Journey not found"
-    );
-
-    error.statusCode = 404;
-
-    throw error;
-  }
-
-  const {
-    train,
-    departureDateTime,
-    arrivalDateTime,
-    platform,
-    seatCapacity,
-    confirmedSeatCapacity,
-    racCapacity,
-    currentStatus,
-    delayInMinutes,
-  } = data;
-
-  // ----------------------------------------------------------
-  // TRAIN
-  // ----------------------------------------------------------
-
-  if (train !== undefined) {
-    if (
-      !mongoose.Types.ObjectId.isValid(
-        train
-      )
-    ) {
-      const error = new Error(
-        "Invalid train ID"
-      );
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    const trainDocument =
-      await Train.findOne({
-        _id: train,
-        isActive: true,
-      });
-
-    if (!trainDocument) {
-      const error = new Error(
-        "Active train not found"
-      );
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    journey.train =
-      trainDocument._id;
-  }
-
-  // ----------------------------------------------------------
-  // DEPARTURE
-  // ----------------------------------------------------------
-
-  if (
-    departureDateTime !==
-    undefined
-  ) {
-    const departure =
-      new Date(
-        departureDateTime
-      );
-
-    if (
-      isNaN(
-        departure.getTime()
-      )
-    ) {
-      const error = new Error(
-        "Invalid departureDateTime"
-      );
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    journey.departureDateTime =
-      departure;
-  }
-
-  // ----------------------------------------------------------
-  // ARRIVAL
-  // ----------------------------------------------------------
-
-  if (
-    arrivalDateTime !==
-    undefined
-  ) {
-    const arrival =
-      new Date(
-        arrivalDateTime
-      );
-
-    if (
-      isNaN(
-        arrival.getTime()
-      )
-    ) {
-      const error = new Error(
-        "Invalid arrivalDateTime"
-      );
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    journey.arrivalDateTime =
-      arrival;
-  }
-
-  // ----------------------------------------------------------
-  // DATE CONSISTENCY
-  // ----------------------------------------------------------
-
-  if (
-    journey.departureDateTime &&
-    journey.arrivalDateTime &&
-    journey.arrivalDateTime <=
-      journey.departureDateTime
-  ) {
-    const error = new Error(
-      "Arrival time must be after departure time"
-    );
-
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  // ----------------------------------------------------------
-  // PLATFORM
-  // ----------------------------------------------------------
-
-  if (
-    platform !== undefined
-  ) {
-    if (
-      !String(platform).trim()
-    ) {
-      const error = new Error(
-        "Platform is required"
-      );
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    journey.platform =
-      String(platform).trim();
-  }
-
-  // ----------------------------------------------------------
-  // SEAT CAPACITY
-  // ----------------------------------------------------------
-
-  if (
-    seatCapacity !== undefined
-  ) {
-    const value =
-      Number(seatCapacity);
-
-    if (
-      !Number.isInteger(value) ||
-      value < 1
-    ) {
-      const error = new Error(
-        "seatCapacity must be a positive integer"
-      );
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    journey.seatCapacity =
-      value;
-  }
-
-  // ----------------------------------------------------------
-  // CONFIRMED CAPACITY
-  // ----------------------------------------------------------
-
-  if (
-    confirmedSeatCapacity !==
-    undefined
-  ) {
-    const value =
-      Number(
-        confirmedSeatCapacity
-      );
-
-    if (
-      !Number.isInteger(value) ||
-      value < 1
-    ) {
-      const error = new Error(
-        "confirmedSeatCapacity must be a positive integer"
-      );
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    journey.confirmedSeatCapacity =
-      value;
-  }
-
-  // ----------------------------------------------------------
-  // CONFIRMED <= PHYSICAL
-  // ----------------------------------------------------------
-
-  if (
-    journey.confirmedSeatCapacity >
-    journey.seatCapacity
-  ) {
-    const error = new Error(
-      "confirmedSeatCapacity cannot exceed seatCapacity"
-    );
-
-    error.statusCode = 400;
-
-    throw error;
-  }
-
-  // ----------------------------------------------------------
-  // RAC CAPACITY
-  // ----------------------------------------------------------
-
-  if (
-    racCapacity !== undefined
-  ) {
-    const value =
-      Number(racCapacity);
-
-    if (
-      !Number.isInteger(value) ||
-      value < 0
-    ) {
-      const error = new Error(
-        "racCapacity must be a non-negative integer"
-      );
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    journey.racCapacity =
-      value;
-  }
-
-  // ----------------------------------------------------------
-  // STATUS
-  // ----------------------------------------------------------
-
-  if (
-    currentStatus !==
-    undefined
-  ) {
-    const allowedStatuses = [
-      "SCHEDULED",
-      "BOARDING",
-      "DEPARTED",
-      "RUNNING",
-      "ARRIVED",
-      "COMPLETED",
-      "CANCELLED",
-    ];
-
-    if (
-      !allowedStatuses.includes(
-        currentStatus
-      )
-    ) {
-      const error = new Error(
-        `Invalid journey status: ${currentStatus}`
-      );
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    journey.currentStatus =
-      currentStatus;
-  }
-
-  // ----------------------------------------------------------
-  // DELAY
-  // ----------------------------------------------------------
-
-  if (
-    delayInMinutes !==
-    undefined
-  ) {
-    const value =
-      Number(delayInMinutes);
-
-    if (
-      !Number.isInteger(value) ||
-      value < 0
-    ) {
-      const error = new Error(
-        "delayInMinutes must be a non-negative integer"
-      );
-
-      error.statusCode = 400;
-
-      throw error;
-    }
-
-    journey.delayInMinutes =
-      value;
-  }
-
-  // ----------------------------------------------------------
-  // SAVE
-  // ----------------------------------------------------------
-
-  await journey.save();
-
-  return await Journey.findById(
-    journey._id
-  ).populate(
-    "train",
-    "trainNumber trainName trainType source destination"
   );
 };
 
 // ============================================================
 // DELETE JOURNEY
 // ADMIN CAN DELETE ANY JOURNEY
-// INCLUDING COMPLETED / CANCELLED JOURNEYS
+// INCLUDING COMPLETED / CANCELLED
 // ============================================================
 
-const deleteJourney = async (journeyId) => {
-  if (!journeyId) {
-    const error = new Error("Journey ID is required");
-    error.statusCode = 400;
-    throw error;
-  }
+const deleteJourney = async (
+  journeyId
+) => {
+  validateJourneyId(journeyId);
 
-  if (!mongoose.Types.ObjectId.isValid(journeyId)) {
-    const error = new Error("Invalid journey ID");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const journey = await Journey.findById(journeyId);
+  const journey = await Journey.findById(
+    journeyId
+  );
 
   if (!journey) {
-    const error = new Error("Journey not found");
-    error.statusCode = 404;
-    throw error;
+    throw createError(
+      "Journey not found",
+      404
+    );
   }
 
-  // IMPORTANT:
-  // Do NOT block COMPLETED or CANCELLED journeys.
+  // ----------------------------------------------------------
+  // IMPORTANT
+  // ----------------------------------------------------------
+  // Do NOT block COMPLETED.
+  // Do NOT block CANCELLED.
   // Admin is allowed to delete them.
+  // ----------------------------------------------------------
 
-  await Journey.findByIdAndDelete(journeyId);
+  await Journey.findByIdAndDelete(
+    journeyId
+  );
 
   return journey;
 };
@@ -1489,27 +1211,18 @@ const deleteJourney = async (journeyId) => {
 
 module.exports = {
   createJourney,
-
   getAllJourneys,
-
   getJourneyById,
 
   startAttendance,
-
   getAttendanceStatus,
-
   resetAttendance,
-
   closeAttendance,
-
   completeJourney,
 
   updateJourneyStatusByTime,
-
   updateJourneyStatus,
-
   updateJourney,
 
   deleteJourney,
-  
 };

@@ -58,7 +58,6 @@ router.put(
 // ============================================================
 // DELETE JOURNEY
 // DELETE /api/journeys/:id
-// ADMIN CAN DELETE COMPLETED JOURNEYS
 // ============================================================
 
 router.delete(
@@ -90,13 +89,6 @@ router.patch(
   authMiddleware,
   authorizeRoles("ADMIN", "TTE"),
   journeyController.resetAttendance
-);
-
-router.put(
-  "/:id",
-  authMiddleware,
-  authorizeRoles("ADMIN"),
-  journeyController.updateJourney
 );
 
 module.exports = router;
