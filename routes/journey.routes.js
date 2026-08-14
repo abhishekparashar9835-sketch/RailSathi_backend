@@ -11,7 +11,6 @@ const authMiddleware =
 const authorizeRoles =
   require("../middleware/role.middleware");
 
-
 // ============================================================
 // CREATE JOURNEY
 // ============================================================
@@ -23,7 +22,6 @@ router.post(
   journeyController.createJourney
 );
 
-
 // ============================================================
 // GET ALL JOURNEYS
 // ============================================================
@@ -32,7 +30,6 @@ router.get(
   "/",
   journeyController.getAllJourneys
 );
-
 
 // ============================================================
 // GET JOURNEY BY ID
@@ -43,21 +40,21 @@ router.get(
   journeyController.getJourneyById
 );
 
-
 // ============================================================
-// DELETE JOURNEY
+// UPDATE JOURNEY
+// PUT /api/journeys/:id
 // ============================================================
 
-router.delete(
+router.put(
   "/:id",
   authMiddleware,
   authorizeRoles("ADMIN"),
-  journeyController.deleteJourney
+  journeyController.updateJourney
 );
-
 
 // ============================================================
 // UPDATE JOURNEY STATUS
+// PATCH /api/journeys/:id/status
 // ============================================================
 
 router.patch(
@@ -67,15 +64,28 @@ router.patch(
   journeyController.updateJourneyStatus
 );
 
-
 // ============================================================
 // RESET ATTENDANCE
+// PATCH /api/journeys/:id/reset-attendance
 // ============================================================
 
 router.patch(
   "/:id/reset-attendance",
+  authMiddleware,
+  authorizeRoles("ADMIN"),
   journeyController.resetAttendance
 );
 
+// ============================================================
+// DELETE JOURNEY
+// DELETE /api/journeys/:id
+// ============================================================
+
+router.delete(
+  "/:id",
+  authMiddleware,
+  authorizeRoles("ADMIN"),
+  journeyController.deleteJourney
+);
 
 module.exports = router;
