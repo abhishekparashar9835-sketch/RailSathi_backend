@@ -53,7 +53,9 @@ const createJourney = async (data) => {
     !Number.isInteger(finalSeatCapacity) ||
     finalSeatCapacity < 1
   ) {
-    throw new Error("seatCapacity must be a positive integer");
+    throw new Error(
+      "seatCapacity must be a positive integer"
+    );
   }
 
   // ----------------------------------------------------------
@@ -76,7 +78,10 @@ const createJourney = async (data) => {
     );
   }
 
-  if (finalConfirmedSeatCapacity > finalSeatCapacity) {
+  if (
+    finalConfirmedSeatCapacity >
+    finalSeatCapacity
+  ) {
     throw new Error(
       "confirmedSeatCapacity cannot exceed seatCapacity"
     );
@@ -123,11 +128,15 @@ const createJourney = async (data) => {
   const arrival = new Date(arrivalDateTime);
 
   if (isNaN(departure.getTime())) {
-    throw new Error("Invalid departureDateTime");
+    throw new Error(
+      "Invalid departureDateTime"
+    );
   }
 
   if (isNaN(arrival.getTime())) {
-    throw new Error("Invalid arrivalDateTime");
+    throw new Error(
+      "Invalid arrivalDateTime"
+    );
   }
 
   if (arrival <= departure) {
@@ -173,7 +182,7 @@ const createJourney = async (data) => {
       : "SCHEDULED";
 
   // ----------------------------------------------------------
-  // CREATE
+  // CREATE JOURNEY
   // ----------------------------------------------------------
 
   const journey = await Journey.create({
@@ -187,7 +196,8 @@ const createJourney = async (data) => {
 
     seatCapacity: finalSeatCapacity,
 
-    confirmedSeatCapacity: finalConfirmedSeatCapacity,
+    confirmedSeatCapacity:
+      finalConfirmedSeatCapacity,
 
     racCapacity: finalRacCapacity,
 
@@ -210,7 +220,9 @@ const createJourney = async (data) => {
   // RETURN POPULATED JOURNEY
   // ----------------------------------------------------------
 
-  return await Journey.findById(journey._id).populate(
+  return await Journey.findById(
+    journey._id
+  ).populate(
     "train",
     "trainNumber trainName trainType source destination"
   );
@@ -225,7 +237,10 @@ const updateJourneyStatusByTime = async (journey) => {
     return null;
   }
 
-  // COMPLETED and CANCELLED are terminal states
+  // ----------------------------------------------------------
+  // TERMINAL STATES
+  // ----------------------------------------------------------
+
   if (
     journey.currentStatus === "CANCELLED" ||
     journey.currentStatus === "COMPLETED"
@@ -250,14 +265,22 @@ const updateJourneyStatusByTime = async (journey) => {
     return journey;
   }
 
-  // Boarding starts 30 minutes before departure
+  // ----------------------------------------------------------
+  // BOARDING STARTS 30 MINUTES BEFORE DEPARTURE
+  // ----------------------------------------------------------
+
   const boardingStart = new Date(
-    departure.getTime() - 30 * 60 * 1000
+    departure.getTime() -
+      30 * 60 * 1000
   );
 
-  // Running starts 1 minute after departure
+  // ----------------------------------------------------------
+  // RUNNING STARTS 1 MINUTE AFTER DEPARTURE
+  // ----------------------------------------------------------
+
   const runningStart = new Date(
-    departure.getTime() + 1 * 60 * 1000
+    departure.getTime() +
+      1 * 60 * 1000
   );
 
   let newStatus;
@@ -274,7 +297,13 @@ const updateJourneyStatusByTime = async (journey) => {
     newStatus = "ARRIVED";
   }
 
-  if (newStatus !== journey.currentStatus) {
+  // ----------------------------------------------------------
+  // UPDATE ONLY STATUS
+  // ----------------------------------------------------------
+
+  if (
+    newStatus !== journey.currentStatus
+  ) {
     await Journey.updateOne(
       {
         _id: journey._id,
@@ -322,14 +351,26 @@ const getAllJourneys = async () => {
 
 const getJourneyById = async (journeyId) => {
   if (!journeyId) {
-    const error = new Error("Journey ID is required");
+    const error = new Error(
+      "Journey ID is required"
+    );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  if (!mongoose.Types.ObjectId.isValid(journeyId)) {
-    const error = new Error("Invalid journey ID");
+  if (
+    !mongoose.Types.ObjectId.isValid(
+      journeyId
+    )
+  ) {
+    const error = new Error(
+      "Invalid journey ID"
+    );
+
     error.statusCode = 400;
+
     throw error;
   }
 
@@ -341,12 +382,18 @@ const getJourneyById = async (journeyId) => {
   );
 
   if (!journey) {
-    const error = new Error("Journey not found");
+    const error = new Error(
+      "Journey not found"
+    );
+
     error.statusCode = 404;
+
     throw error;
   }
 
-  await updateJourneyStatusByTime(journey);
+  await updateJourneyStatusByTime(
+    journey
+  );
 
   return journey;
 };
@@ -357,14 +404,12 @@ const getJourneyById = async (journeyId) => {
 
 const startAttendance = async (journeyId) => {
   if (!journeyId) {
-    const error = new Error("Journey ID is required");
-    error.statusCode = 400;
-    throw error;
-  }
+    const error = new Error(
+      "Journey ID is required"
+    );
 
-  if (!mongoose.Types.ObjectId.isValid(journeyId)) {
-    const error = new Error("Invalid journey ID");
     error.statusCode = 400;
+
     throw error;
   }
 
@@ -376,40 +421,65 @@ const startAttendance = async (journeyId) => {
   );
 
   if (!journey) {
-    const error = new Error("Journey not found");
+    const error = new Error(
+      "Journey not found"
+    );
+
     error.statusCode = 404;
+
     throw error;
   }
 
   if (!journey.isActive) {
-    const error = new Error("Journey is not active");
+    const error = new Error(
+      "Journey is not active"
+    );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  await updateJourneyStatusByTime(journey);
+  await updateJourneyStatusByTime(
+    journey
+  );
 
-  if (journey.currentStatus === "CANCELLED") {
+  if (
+    journey.currentStatus ===
+    "CANCELLED"
+  ) {
     const error = new Error(
       "Cannot start attendance for a cancelled journey"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  if (journey.currentStatus === "COMPLETED") {
+  if (
+    journey.currentStatus ===
+    "COMPLETED"
+  ) {
     const error = new Error(
       "Cannot start attendance after journey completion"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  if (journey.currentStatus !== "BOARDING") {
+  if (
+    journey.currentStatus !==
+    "BOARDING"
+  ) {
     const error = new Error(
       `Attendance can only be started during boarding. Current status: ${journey.currentStatus}`
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
@@ -417,7 +487,9 @@ const startAttendance = async (journeyId) => {
     const error = new Error(
       "Attendance has already been closed for this journey"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
@@ -425,22 +497,30 @@ const startAttendance = async (journeyId) => {
     const error = new Error(
       "Attendance has already been started for this journey"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  const attendanceDurationMinutes = Number(
-    process.env.ATTENDANCE_DURATION_MINUTES || 60
-  );
+  const attendanceDurationMinutes =
+    Number(
+      process.env.ATTENDANCE_DURATION_MINUTES ||
+        60
+    );
 
   if (
-    !Number.isInteger(attendanceDurationMinutes) ||
+    !Number.isInteger(
+      attendanceDurationMinutes
+    ) ||
     attendanceDurationMinutes < 1
   ) {
     const error = new Error(
       "Invalid ATTENDANCE_DURATION_MINUTES configuration"
     );
+
     error.statusCode = 500;
+
     throw error;
   }
 
@@ -448,13 +528,21 @@ const startAttendance = async (journeyId) => {
 
   const cutoffAt = new Date(
     startedAt.getTime() +
-      attendanceDurationMinutes * 60 * 1000
+      attendanceDurationMinutes *
+        60 *
+        1000
   );
 
-  journey.attendanceStartedAt = startedAt;
-  journey.attendanceCutoffAt = cutoffAt;
+  journey.attendanceStartedAt =
+    startedAt;
+
+  journey.attendanceCutoffAt =
+    cutoffAt;
+
   journey.attendanceClosed = false;
-  journey.attendanceProcessedAt = null;
+
+  journey.attendanceProcessedAt =
+    null;
 
   await journey.save();
 
@@ -462,22 +550,36 @@ const startAttendance = async (journeyId) => {
     journey: {
       _id: journey._id,
       train: journey.train,
-      departureDateTime: journey.departureDateTime,
-      arrivalDateTime: journey.arrivalDateTime,
+      departureDateTime:
+        journey.departureDateTime,
+      arrivalDateTime:
+        journey.arrivalDateTime,
       platform: journey.platform,
-      seatCapacity: journey.seatCapacity,
+      seatCapacity:
+        journey.seatCapacity,
       confirmedSeatCapacity:
         journey.confirmedSeatCapacity,
-      racCapacity: journey.racCapacity,
-      currentStatus: journey.currentStatus,
+      racCapacity:
+        journey.racCapacity,
+      currentStatus:
+        journey.currentStatus,
     },
 
     attendance: {
-      startedAt: journey.attendanceStartedAt,
-      cutoffAt: journey.attendanceCutoffAt,
-      durationMinutes: attendanceDurationMinutes,
-      closed: journey.attendanceClosed,
-      processedAt: journey.attendanceProcessedAt,
+      startedAt:
+        journey.attendanceStartedAt,
+
+      cutoffAt:
+        journey.attendanceCutoffAt,
+
+      durationMinutes:
+        attendanceDurationMinutes,
+
+      closed:
+        journey.attendanceClosed,
+
+      processedAt:
+        journey.attendanceProcessedAt,
     },
   };
 };
@@ -486,67 +588,103 @@ const startAttendance = async (journeyId) => {
 // GET ATTENDANCE STATUS
 // ============================================================
 
-const getAttendanceStatus = async (journeyId) => {
+const getAttendanceStatus = async (
+  journeyId
+) => {
   if (!journeyId) {
-    const error = new Error("Journey ID is required");
+    const error = new Error(
+      "Journey ID is required"
+    );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  if (!mongoose.Types.ObjectId.isValid(journeyId)) {
-    const error = new Error("Invalid journey ID");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const journey = await Journey.findById(journeyId);
+  const journey = await Journey.findById(
+    journeyId
+  );
 
   if (!journey) {
-    const error = new Error("Journey not found");
+    const error = new Error(
+      "Journey not found"
+    );
+
     error.statusCode = 404;
+
     throw error;
   }
 
-  await updateJourneyStatusByTime(journey);
+  await updateJourneyStatusByTime(
+    journey
+  );
 
-  if (journey.currentStatus === "COMPLETED") {
+  if (
+    journey.currentStatus ===
+    "COMPLETED"
+  ) {
     return {
       status: "COMPLETED",
-      startedAt: journey.attendanceStartedAt,
-      cutoffAt: journey.attendanceCutoffAt,
+
+      startedAt:
+        journey.attendanceStartedAt,
+
+      cutoffAt:
+        journey.attendanceCutoffAt,
+
       remainingSeconds: 0,
+
       closed: true,
-      processedAt: journey.attendanceProcessedAt,
+
+      processedAt:
+        journey.attendanceProcessedAt,
     };
   }
 
   if (!journey.attendanceStartedAt) {
     return {
       status: "NOT_STARTED",
+
       startedAt: null,
+
       cutoffAt: null,
+
       remainingSeconds: 0,
-      closed: journey.attendanceClosed,
+
+      closed:
+        journey.attendanceClosed,
     };
   }
 
   if (journey.attendanceClosed) {
     return {
       status: "CLOSED",
-      startedAt: journey.attendanceStartedAt,
-      cutoffAt: journey.attendanceCutoffAt,
+
+      startedAt:
+        journey.attendanceStartedAt,
+
+      cutoffAt:
+        journey.attendanceCutoffAt,
+
       remainingSeconds: 0,
+
       closed: true,
-      processedAt: journey.attendanceProcessedAt,
+
+      processedAt:
+        journey.attendanceProcessedAt,
     };
   }
 
   if (!journey.attendanceCutoffAt) {
     return {
       status: "NOT_STARTED",
+
       startedAt: null,
+
       cutoffAt: null,
+
       remainingSeconds: 0,
+
       closed: false,
     };
   }
@@ -559,28 +697,42 @@ const getAttendanceStatus = async (journeyId) => {
 
   const remainingMs = Math.max(
     0,
-    cutoff.getTime() - now.getTime()
+    cutoff.getTime() -
+      now.getTime()
   );
 
-  const remainingSeconds = Math.ceil(
-    remainingMs / 1000
-  );
+  const remainingSeconds =
+    Math.ceil(
+      remainingMs / 1000
+    );
 
   if (remainingSeconds <= 0) {
     return {
       status: "EXPIRED",
-      startedAt: journey.attendanceStartedAt,
-      cutoffAt: journey.attendanceCutoffAt,
+
+      startedAt:
+        journey.attendanceStartedAt,
+
+      cutoffAt:
+        journey.attendanceCutoffAt,
+
       remainingSeconds: 0,
+
       closed: false,
     };
   }
 
   return {
     status: "ACTIVE",
-    startedAt: journey.attendanceStartedAt,
-    cutoffAt: journey.attendanceCutoffAt,
+
+    startedAt:
+      journey.attendanceStartedAt,
+
+    cutoffAt:
+      journey.attendanceCutoffAt,
+
     remainingSeconds,
+
     closed: false,
   };
 };
@@ -589,50 +741,73 @@ const getAttendanceStatus = async (journeyId) => {
 // RESET ATTENDANCE
 // ============================================================
 
-const resetAttendance = async (journeyId) => {
+const resetAttendance = async (
+  journeyId
+) => {
   if (!journeyId) {
-    const error = new Error("Journey ID is required");
+    const error = new Error(
+      "Journey ID is required"
+    );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  if (!mongoose.Types.ObjectId.isValid(journeyId)) {
-    const error = new Error("Invalid journey ID");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const journey = await Journey.findById(journeyId);
+  const journey = await Journey.findById(
+    journeyId
+  );
 
   if (!journey) {
-    const error = new Error("Journey not found");
+    const error = new Error(
+      "Journey not found"
+    );
+
     error.statusCode = 404;
+
     throw error;
   }
 
-  await updateJourneyStatusByTime(journey);
+  await updateJourneyStatusByTime(
+    journey
+  );
 
-  if (journey.currentStatus === "COMPLETED") {
+  if (
+    journey.currentStatus ===
+    "COMPLETED"
+  ) {
     const error = new Error(
       "Attendance cannot be reset after journey completion"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  if (journey.currentStatus === "CANCELLED") {
+  if (
+    journey.currentStatus ===
+    "CANCELLED"
+  ) {
     const error = new Error(
       "Attendance cannot be reset for a cancelled journey"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  if (journey.currentStatus !== "BOARDING") {
+  if (
+    journey.currentStatus !==
+    "BOARDING"
+  ) {
     const error = new Error(
       `Attendance can only be reset during boarding. Current status: ${journey.currentStatus}`
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
@@ -640,14 +815,23 @@ const resetAttendance = async (journeyId) => {
     const error = new Error(
       "Attendance has already been closed"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  journey.attendanceStartedAt = null;
-  journey.attendanceCutoffAt = null;
-  journey.attendanceClosed = false;
-  journey.attendanceProcessedAt = null;
+  journey.attendanceStartedAt =
+    null;
+
+  journey.attendanceCutoffAt =
+    null;
+
+  journey.attendanceClosed =
+    false;
+
+  journey.attendanceProcessedAt =
+    null;
 
   await journey.save();
 
@@ -658,38 +842,54 @@ const resetAttendance = async (journeyId) => {
 // CLOSE ATTENDANCE
 // ============================================================
 
-const closeAttendance = async (journeyId) => {
+const closeAttendance = async (
+  journeyId
+) => {
   if (!journeyId) {
-    const error = new Error("Journey ID is required");
+    const error = new Error(
+      "Journey ID is required"
+    );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  if (!mongoose.Types.ObjectId.isValid(journeyId)) {
-    const error = new Error("Invalid journey ID");
-    error.statusCode = 400;
-    throw error;
-  }
-
-  const journey = await Journey.findById(journeyId);
+  const journey = await Journey.findById(
+    journeyId
+  );
 
   if (!journey) {
-    const error = new Error("Journey not found");
+    const error = new Error(
+      "Journey not found"
+    );
+
     error.statusCode = 404;
+
     throw error;
   }
 
-  await updateJourneyStatusByTime(journey);
+  await updateJourneyStatusByTime(
+    journey
+  );
 
-  if (journey.currentStatus === "CANCELLED") {
+  if (
+    journey.currentStatus ===
+    "CANCELLED"
+  ) {
     const error = new Error(
       "Cannot close attendance for a cancelled journey"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  if (journey.currentStatus === "COMPLETED") {
+  if (
+    journey.currentStatus ===
+    "COMPLETED"
+  ) {
     return journey;
   }
 
@@ -697,7 +897,9 @@ const closeAttendance = async (journeyId) => {
     const error = new Error(
       "Attendance has not been started"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
@@ -705,12 +907,17 @@ const closeAttendance = async (journeyId) => {
     const error = new Error(
       "Attendance is already closed"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  journey.attendanceClosed = true;
-  journey.attendanceProcessedAt = new Date();
+  journey.attendanceClosed =
+    true;
+
+  journey.attendanceProcessedAt =
+    new Date();
 
   await journey.save();
 
@@ -721,16 +928,16 @@ const closeAttendance = async (journeyId) => {
 // COMPLETE JOURNEY
 // ============================================================
 
-const completeJourney = async (journeyId) => {
+const completeJourney = async (
+  journeyId
+) => {
   if (!journeyId) {
-    const error = new Error("Journey ID is required");
-    error.statusCode = 400;
-    throw error;
-  }
+    const error = new Error(
+      "Journey ID is required"
+    );
 
-  if (!mongoose.Types.ObjectId.isValid(journeyId)) {
-    const error = new Error("Invalid journey ID");
     error.statusCode = 400;
+
     throw error;
   }
 
@@ -742,43 +949,67 @@ const completeJourney = async (journeyId) => {
   );
 
   if (!journey) {
-    const error = new Error("Journey not found");
+    const error = new Error(
+      "Journey not found"
+    );
+
     error.statusCode = 404;
+
     throw error;
   }
 
-  await updateJourneyStatusByTime(journey);
+  await updateJourneyStatusByTime(
+    journey
+  );
 
-  if (journey.currentStatus === "CANCELLED") {
+  if (
+    journey.currentStatus ===
+    "CANCELLED"
+  ) {
     const error = new Error(
       "Cannot complete a cancelled journey"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  if (journey.currentStatus === "COMPLETED") {
+  if (
+    journey.currentStatus ===
+    "COMPLETED"
+  ) {
     const error = new Error(
       "Journey is already completed"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  if (journey.currentStatus !== "ARRIVED") {
+  if (
+    journey.currentStatus !==
+    "ARRIVED"
+  ) {
     const error = new Error(
       `Journey cannot be completed while status is ${journey.currentStatus}`
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  journey.attendanceClosed = true;
+  journey.attendanceClosed =
+    true;
 
   journey.attendanceProcessedAt =
-    journey.attendanceProcessedAt || new Date();
+    journey.attendanceProcessedAt ||
+    new Date();
 
-  journey.currentStatus = "COMPLETED";
+  journey.currentStatus =
+    "COMPLETED";
 
   await journey.save();
 
@@ -787,26 +1018,48 @@ const completeJourney = async (journeyId) => {
 
 // ============================================================
 // UPDATE JOURNEY
+// PUT /api/journeys/:id
 // ============================================================
 
-const updateJourney = async (journeyId, data) => {
+const updateJourney = async (
+  journeyId,
+  data
+) => {
   if (!journeyId) {
-    const error = new Error("Journey ID is required");
+    const error = new Error(
+      "Journey ID is required"
+    );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  if (!mongoose.Types.ObjectId.isValid(journeyId)) {
-    const error = new Error("Invalid journey ID");
+  if (
+    !mongoose.Types.ObjectId.isValid(
+      journeyId
+    )
+  ) {
+    const error = new Error(
+      "Invalid journey ID"
+    );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  const journey = await Journey.findById(journeyId);
+  const journey = await Journey.findById(
+    journeyId
+  );
 
   if (!journey) {
-    const error = new Error("Journey not found");
+    const error = new Error(
+      "Journey not found"
+    );
+
     error.statusCode = 404;
+
     throw error;
   }
 
@@ -827,60 +1080,92 @@ const updateJourney = async (journeyId, data) => {
   // ----------------------------------------------------------
 
   if (train !== undefined) {
-    if (!mongoose.Types.ObjectId.isValid(train)) {
-      const error = new Error("Invalid train ID");
+    if (
+      !mongoose.Types.ObjectId.isValid(
+        train
+      )
+    ) {
+      const error = new Error(
+        "Invalid train ID"
+      );
+
       error.statusCode = 400;
+
       throw error;
     }
 
-    const trainDocument = await Train.findOne({
-      _id: train,
-      isActive: true,
-    });
+    const trainDocument =
+      await Train.findOne({
+        _id: train,
+        isActive: true,
+      });
 
     if (!trainDocument) {
-      const error = new Error("Active train not found");
+      const error = new Error(
+        "Active train not found"
+      );
+
       error.statusCode = 400;
+
       throw error;
     }
 
-    journey.train = trainDocument._id;
+    journey.train =
+      trainDocument._id;
   }
 
   // ----------------------------------------------------------
   // DEPARTURE
   // ----------------------------------------------------------
 
-  if (departureDateTime !== undefined) {
-    const departure = new Date(departureDateTime);
+  if (
+    departureDateTime !== undefined
+  ) {
+    const departure = new Date(
+      departureDateTime
+    );
 
-    if (isNaN(departure.getTime())) {
+    if (
+      isNaN(departure.getTime())
+    ) {
       const error = new Error(
         "Invalid departureDateTime"
       );
+
       error.statusCode = 400;
+
       throw error;
     }
 
-    journey.departureDateTime = departure;
+    journey.departureDateTime =
+      departure;
   }
 
   // ----------------------------------------------------------
   // ARRIVAL
   // ----------------------------------------------------------
 
-  if (arrivalDateTime !== undefined) {
-    const arrival = new Date(arrivalDateTime);
+  if (
+    arrivalDateTime !== undefined
+  ) {
+    const arrival = new Date(
+      arrivalDateTime
+    );
 
-    if (isNaN(arrival.getTime())) {
+    if (
+      isNaN(arrival.getTime())
+    ) {
       const error = new Error(
         "Invalid arrivalDateTime"
       );
+
       error.statusCode = 400;
+
       throw error;
     }
 
-    journey.arrivalDateTime = arrival;
+    journey.arrivalDateTime =
+      arrival;
   }
 
   // ----------------------------------------------------------
@@ -896,7 +1181,9 @@ const updateJourney = async (journeyId, data) => {
     const error = new Error(
       "Arrival time must be after departure time"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
@@ -909,11 +1196,14 @@ const updateJourney = async (journeyId, data) => {
       const error = new Error(
         "Platform is required"
       );
+
       error.statusCode = 400;
+
       throw error;
     }
 
-    journey.platform = String(platform).trim();
+    journey.platform =
+      String(platform).trim();
   }
 
   // ----------------------------------------------------------
@@ -921,35 +1211,54 @@ const updateJourney = async (journeyId, data) => {
   // ----------------------------------------------------------
 
   if (seatCapacity !== undefined) {
-    const value = Number(seatCapacity);
+    const value = Number(
+      seatCapacity
+    );
 
-    if (!Number.isInteger(value) || value < 1) {
+    if (
+      !Number.isInteger(value) ||
+      value < 1
+    ) {
       const error = new Error(
         "seatCapacity must be a positive integer"
       );
+
       error.statusCode = 400;
+
       throw error;
     }
 
-    journey.seatCapacity = value;
+    journey.seatCapacity =
+      value;
   }
 
   // ----------------------------------------------------------
-  // CONFIRMED CAPACITY
+  // CONFIRMED SEAT CAPACITY
   // ----------------------------------------------------------
 
-  if (confirmedSeatCapacity !== undefined) {
-    const value = Number(confirmedSeatCapacity);
+  if (
+    confirmedSeatCapacity !==
+    undefined
+  ) {
+    const value = Number(
+      confirmedSeatCapacity
+    );
 
-    if (!Number.isInteger(value) || value < 1) {
+    if (
+      !Number.isInteger(value) ||
+      value < 1
+    ) {
       const error = new Error(
         "confirmedSeatCapacity must be a positive integer"
       );
+
       error.statusCode = 400;
+
       throw error;
     }
 
-    journey.confirmedSeatCapacity = value;
+    journey.confirmedSeatCapacity =
+      value;
   }
 
   if (
@@ -959,7 +1268,9 @@ const updateJourney = async (journeyId, data) => {
     const error = new Error(
       "confirmedSeatCapacity cannot exceed seatCapacity"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
@@ -968,13 +1279,20 @@ const updateJourney = async (journeyId, data) => {
   // ----------------------------------------------------------
 
   if (racCapacity !== undefined) {
-    const value = Number(racCapacity);
+    const value = Number(
+      racCapacity
+    );
 
-    if (!Number.isInteger(value) || value < 0) {
+    if (
+      !Number.isInteger(value) ||
+      value < 0
+    ) {
       const error = new Error(
         "racCapacity must be a non-negative integer"
       );
+
       error.statusCode = 400;
+
       throw error;
     }
 
@@ -985,7 +1303,9 @@ const updateJourney = async (journeyId, data) => {
   // STATUS
   // ----------------------------------------------------------
 
-  if (currentStatus !== undefined) {
+  if (
+    currentStatus !== undefined
+  ) {
     const allowedStatuses = [
       "SCHEDULED",
       "BOARDING",
@@ -996,33 +1316,50 @@ const updateJourney = async (journeyId, data) => {
       "CANCELLED",
     ];
 
-    if (!allowedStatuses.includes(currentStatus)) {
+    if (
+      !allowedStatuses.includes(
+        currentStatus
+      )
+    ) {
       const error = new Error(
         `Invalid journey status: ${currentStatus}`
       );
+
       error.statusCode = 400;
+
       throw error;
     }
 
-    journey.currentStatus = currentStatus;
+    journey.currentStatus =
+      currentStatus;
   }
 
   // ----------------------------------------------------------
   // DELAY
   // ----------------------------------------------------------
 
-  if (delayInMinutes !== undefined) {
-    const value = Number(delayInMinutes);
+  if (
+    delayInMinutes !== undefined
+  ) {
+    const value = Number(
+      delayInMinutes
+    );
 
-    if (!Number.isInteger(value) || value < 0) {
+    if (
+      !Number.isInteger(value) ||
+      value < 0
+    ) {
       const error = new Error(
         "delayInMinutes must be a non-negative integer"
       );
+
       error.statusCode = 400;
+
       throw error;
     }
 
-    journey.delayInMinutes = value;
+    journey.delayInMinutes =
+      value;
   }
 
   await journey.save();
@@ -1036,37 +1373,53 @@ const updateJourney = async (journeyId, data) => {
 };
 
 // ============================================================
-// UPDATE JOURNEY STATUS MANUALLY/AUTOMATICALLY
+// UPDATE JOURNEY STATUS
 // ============================================================
 
-const updateJourneyStatus = async (journeyId) => {
+const updateJourneyStatus = async (
+  journeyId
+) => {
   if (!journeyId) {
     const error = new Error(
       "Journey ID is required"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  if (!mongoose.Types.ObjectId.isValid(journeyId)) {
+  if (
+    !mongoose.Types.ObjectId.isValid(
+      journeyId
+    )
+  ) {
     const error = new Error(
       "Invalid journey ID"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  const journey = await Journey.findById(journeyId);
+  const journey = await Journey.findById(
+    journeyId
+  );
 
   if (!journey) {
     const error = new Error(
       "Journey not found"
     );
+
     error.statusCode = 404;
+
     throw error;
   }
 
-  await updateJourneyStatusByTime(journey);
+  await updateJourneyStatusByTime(
+    journey
+  );
 
   return await Journey.findById(
     journey._id
@@ -1079,54 +1432,67 @@ const updateJourneyStatus = async (journeyId) => {
 
 // ============================================================
 // DELETE JOURNEY
-// ============================================================
-// ADMIN CAN DELETE:
-// - SCHEDULED
-// - BOARDING
-// - DEPARTED
-// - RUNNING
-// - ARRIVED
-// - COMPLETED
-// - CANCELLED
-//
-// The authorization middleware/controller should ensure
-// only ADMIN is allowed to call this endpoint.
+// ADMIN CAN DELETE ANY STATUS
 // ============================================================
 
-const deleteJourney = async (journeyId) => {
+const deleteJourney = async (
+  journeyId
+) => {
   if (!journeyId) {
     const error = new Error(
       "Journey ID is required"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  if (!mongoose.Types.ObjectId.isValid(journeyId)) {
+  if (
+    !mongoose.Types.ObjectId.isValid(
+      journeyId
+    )
+  ) {
     const error = new Error(
       "Invalid journey ID"
     );
+
     error.statusCode = 400;
+
     throw error;
   }
 
-  const journey = await Journey.findById(journeyId);
+  const journey = await Journey.findById(
+    journeyId
+  );
 
   if (!journey) {
     const error = new Error(
       "Journey not found"
     );
+
     error.statusCode = 404;
+
     throw error;
   }
 
-  // ----------------------------------------------------------
+  // ==========================================================
   // NO STATUS RESTRICTION
-  // ----------------------------------------------------------
-  // Admin is allowed to delete COMPLETED journeys.
-  // ----------------------------------------------------------
+  //
+  // ADMIN CAN DELETE:
+  //
+  // SCHEDULED
+  // BOARDING
+  // DEPARTED
+  // RUNNING
+  // ARRIVED
+  // COMPLETED
+  // CANCELLED
+  // ==========================================================
 
-  await Journey.findByIdAndDelete(journeyId);
+  await Journey.findByIdAndDelete(
+    journeyId
+  );
 
   return journey;
 };
@@ -1144,7 +1510,6 @@ module.exports = {
   getAttendanceStatus,
   resetAttendance,
   closeAttendance,
-
   completeJourney,
 
   updateJourneyStatusByTime,

@@ -13,6 +13,7 @@ const authorizeRoles =
 
 // ============================================================
 // CREATE JOURNEY
+// POST /api/journeys
 // ============================================================
 
 router.post(
@@ -24,6 +25,7 @@ router.post(
 
 // ============================================================
 // GET ALL JOURNEYS
+// GET /api/journeys
 // ============================================================
 
 router.get(
@@ -33,6 +35,7 @@ router.get(
 
 // ============================================================
 // GET JOURNEY BY ID
+// GET /api/journeys/:id
 // ============================================================
 
 router.get(
@@ -50,6 +53,19 @@ router.put(
   authMiddleware,
   authorizeRoles("ADMIN"),
   journeyController.updateJourney
+);
+
+// ============================================================
+// DELETE JOURNEY
+// DELETE /api/journeys/:id
+// ADMIN CAN DELETE COMPLETED JOURNEYS
+// ============================================================
+
+router.delete(
+  "/:id",
+  authMiddleware,
+  authorizeRoles("ADMIN"),
+  journeyController.deleteJourney
 );
 
 // ============================================================
@@ -74,18 +90,6 @@ router.patch(
   authMiddleware,
   authorizeRoles("ADMIN"),
   journeyController.resetAttendance
-);
-
-// ============================================================
-// DELETE JOURNEY
-// DELETE /api/journeys/:id
-// ============================================================
-
-router.delete(
-  "/:id",
-  authMiddleware,
-  authorizeRoles("ADMIN"),
-  journeyController.deleteJourney
 );
 
 module.exports = router;
